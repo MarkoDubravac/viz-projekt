@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script src="http://d3js.org/topojson.v1.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+    <title>Kvalitete čokolade</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Vizualizacija kvalitete čokolada na temelju podrijetla kakaa</h1>
+    </div>
+    <script>
+      var width = 960;
+      var height = 650;
+
+      //circle params
+      var circleWidth = 500;
+      var circleHeight = 500;
+      var circleRadius = 200;
+      var arc = d3.svg.arc().innerRadius(0).outerRadius(circleRadius);
+      var pie = d3.layout.pie().value(function (d) {
+        return d.count;
+      });
+      //
+
+      var container = d3.select("body").append("div").style("display", "flex");
+
+      var leftColumn = container.append("div");
+      var rightColumn = container.append("div");
+
+      var projection = d3.geo
+        .mercator()
+        .scale(140)
+        .translate([width / 2, height / 1.4]);
+
+      var path = d3.geo.path().projection(projection);
+
+      var svg = leftColumn
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g");
+
+      var text = rightColumn
+        .append("h2")
+        .text("Hover over any country!")
+        .attr("class", "name");
+
+      //nasteluj kontejner
+      var pieColor = d3.scale
+        .ordinal()
+        .domain([1.5, 2.5, 3.25, 3.75, 4.5])
+        .range(["#b69b80", "#f0cca8", "#f0ab60", "#a37341", "#71502d"]);
+
+      var pieContainer = container.append("div").style("margin-top", "10%");
+
+      var pieSvg = rightColumn
+        .append("svg")
+        .attr("width", circleWidth)
+        .attr("height", circleHeight);
+
+      //detlete this to fix -MARKO DUBRAVAC
+
+      var countryColors = d3.scale
+        .linear()
+        .domain([2.5, 3.0, 3.2, 3.5, 4.5])
+        .range(["#dc9456", "#ab7343", "#49311d", "#18100a"]);
+
+      var legendWidth = 200;
+      var legendHeight = 20;
+
+      // Create the legend SVG element
+      var legend = d3
+        .select("svg")
+        .append("svg")
+        .attr("class", "legend")
+        .attr("width", legendWidth)
+        .attr("height", legendHeight)
+        .attr("x", 50)
+        .attr("y", 600);
+
+      var legendContainer = legend
+        .append("g")
+        .attr("transform", "translate(10, 0)"); // Adjust the x coordinate to create some padding
+
+      // Add the legend title
+      legendContainer
+        .append("text")
+        .attr("class", "legend-title")
+        .attr("x", legendWidth / 2)
+        .attr("y", 15) // Adjust the y coordinate to position the title within the legend container
+        .style("text-anchor", "middle")
+        .text("Legend:");
+
+      var swatchWidth = legendWidth / countryColors.range().length;
+
+      // Add color swatches to the legend
+      var countryColorsSwatches = legend
+        .selectAll(".color-swatch")
+        .data(countryColors.domain())
+        .enter()
+        .append("rect")
+        .attr("class", "color-swatch")
+        .attr("x", function (d, i) {
+          return i * swatchWidth;
+        })
+        .attr("y", 0)
+        .attr("width", swatchWidth)
+        .attr("height", legendHeight)
+        .style("stroke", "black")
+        .style("stroke-width", 1)
+        .style("fill", function (d) {
+          return countryColors(d);
+        });
+
+      // Add text labels for the legend domain values
+      var legendLabels = svg
+        .selectAll(".legend-label")
+        .data(countryColors.domain())
+        .enter()
+        .append("text")
+        .attr("class", "legend-label")
+        .attr("x", function (d, i) {
+          return i * swatchWidth + swatchWidth / 2 - 25 + 50;
+        })
+        .attr("y", 590)
+        .text(function (d) {
+          return d;
+        })
+        .attr("text-anchor", "middle");
+
+      var legendLabelsTitle = svg
+        .append("text")
+        .attr("class", "legend-label")
+        .attr("x", 3 * swatchWidth)
+        .attr("y", 570)
+        .text("Chocolate Rating")
+        .attr("text-anchor", "middle");
+
+      // BAR PARAMS
+      var margin = { top: 80, right: 20, bottom: 380, left: 340 };
+      var barWidth = 1000 - margin.left - margin.right;
+      var barHeight = 1000 - margin.top - margin.bottom;
+
+      var formatPercent = d3.format("");
+      var x = d3.scale.ordinal().rangeRoundBands([0, barWidth], 0.1);
+      var y = d3.scale.linear().range([barHeight, 0]);
+      var xAxis = d3.svg.axis().scale(x).orient("bottom");
+      var yAxis = d3.svg
+        .axis()
+        .scale(y)
+        .orient("left")
+        .tickFormat(formatPercent);
+
+      d3.json("worldTopo.json", function (error, world) {
+        d3.json("cocoa_ratings.json", function (error, cocoa_ratings) {
+          var data = topojson.feature(world, world.objects.countries1);
+
+          var states = svg
+            .selectAll("path")
+            .data(data.features)
+            .enter()
+            .append("path")
+            .attr("class", "country")
+            .attr("id", function (d) {
+              return d.id;
+            })
+            .attr("d", path)
+            .style("fill", "#D6CFC7")
+            .style("fill", function (d) {
+              var countryName = d.properties.name;
+              var cocoaRatings = getCocoaRating(countryName, cocoa_ratings);
+              var averageRating = calculateAverageRating(cocoaRatings);
+              return countryColors(averageRating);
+            })
+            .style("stroke", "black")
+            .style("stroke-width", 1)
+            .style("stroke-opacity", 1)
+            .on("click", function (d) {
+              d3.selectAll(".barSvg").remove();
+              var countryName = d.properties.name;
+              var filteredData = cocoa_ratings.filter(function (rating) {
+                return rating["Broad Bean Origin"] === countryName;
+              });
+              if (filteredData.length === 0) {
+                console.log("Hello!");
+              } else {
+                var barSvg = d3
+                  .select("body")
+                  .append("svg")
+                  .attr("class", "barSvg")
+                  .attr("width", barWidth + margin.left + margin.right)
+                  .attr("height", barHeight + margin.top + margin.bottom - 300)
+                  .append("g")
+                  .attr(
+                    "transform",
+                    "translate(" + margin.left + "," + margin.top + ")"
+                  );
+
+                barSvg.selectAll(".chart-title").remove();
+                window.scrollTo(0, document.body.scrollHeight); // scroll
+                barSvg
+                  .append("text")
+                  .attr("class", "chart-title")
+                  .attr("x", barWidth / 2)
+                  .attr("y", -20)
+                  .attr("text-anchor", "middle")
+                  .style("font-size", "20px")
+                  .text("Average Rating for " + countryName);
+
+                var averageData = d3
+                  .nest()
+                  .key(function (d) {
+                    return d["Review Date"];
+                  })
+                  .rollup(function (values) {
+                    return d3.mean(values, function (d) {
+                      return d.Rating;
+                    });
+                  })
+                  .entries(filteredData);
+
+                console.log(averageData);
+
+                x.domain(
+                  averageData.map(function (d) {
+                    return d.key;
+                  })
+                );
+                y.domain([0, 5]);
+
+                barSvg.selectAll(".bar").remove();
+                barSvg.selectAll(".x.axis").remove();
+                barSvg.selectAll(".y.axis").remove();
+
+                barSvg
+                  .append("g")
+                  .attr("class", "x axis")
+                  .attr("transform", "translate(0," + barHeight + ")")
+                  .call(xAxis)
+                  .append("text")
+                  .attr("x", 500)
+                  .attr("y", 25)
+                  .attr("dy", ".71em")
+                  .style("text-anchor", "start")
+                  .text("Godina ocjenjivanja");
+
+                barSvg
+                  .append("g")
+                  .attr("class", "y axis")
+                  .call(yAxis)
+                  .append("text")
+                  .attr("transform", "rotate(-90)")
+                  .attr("y", -60)
+                  .attr("dy", ".71em")
+                  .style("text-anchor", "end")
+                  .text("Prosječna ocjena čokolade");
+
+                barSvg
+                  .selectAll(".bar")
+                  .data(averageData)
+                  .enter()
+                  .append("rect")
+                  .attr("class", "bar")
+                  .attr("fill", function (d) {
+                    return countryColors(d.values);
+                  })
+                  .attr("x", function (d) {
+                    return x(d.key);
+                  })
+                  .attr("width", x.rangeBand())
+                  .attr("y", function (d) {
+                    return y(0);
+                  })
+                  .attr("height", 0) // Set initial height to 0
+                  .transition()
+                  .duration(1000)
+                  .delay(function (d, i) {
+                    return i * 100;
+                  })
+                  .attr("y", function (d) {
+                    // Set the final y-coordinate to make it rise
+                    return y(d.values);
+                  })
+                  .attr("height", function (d) {
+                    return barHeight - y(d.values);
+                  });
+              }
+            })
+
+            .on("mouseover", function (d) {
+              var countryName = d.properties.name;
+              var cocoaRatings = getCocoaRating(countryName, cocoa_ratings);
+              var averageRating = calculateAverageRating(cocoaRatings);
+              if (isNaN(averageRating)) {
+                d3.select(".name").html(countryName + "<br>" + averageRating);
+              } else {
+                d3.select(".name").html(
+                  countryName +
+                    "<br>Prosječna ocjena čokolade: " +
+                    averageRating
+                );
+              }
+
+              var mappedRatings = cocoaRatings.map(function (rating) {
+                return mapRatingToRange(rating);
+              });
+
+              var ratingCounts = {};
+              mappedRatings.forEach(function (rating) {
+                if (ratingCounts.hasOwnProperty(rating)) {
+                  ratingCounts[rating]++;
+                } else {
+                  ratingCounts[rating] = 1;
+                }
+              });
+
+              var pieData = Object.keys(ratingCounts).map(function (rating) {
+                return { rating: rating, count: ratingCounts[rating] };
+              });
+
+              pieSvg.selectAll("g.pie").remove();
+
+              var pieArcs = pieSvg
+                .selectAll("g.pie")
+                .data(pie(pieData))
+                .enter()
+                .append("g")
+                .attr("class", "pie")
+                .attr(
+                  "transform",
+                  "translate(" + circleWidth / 2 + ", " + circleHeight / 2 + ")"
+                );
+
+              pieArcs
+                .append("path")
+                .attr("fill", function (d) {
+                  return pieColor(d.data.rating);
+                })
+                .attr("d", arc);
+
+              pieArcs
+                .append("text")
+                .attr("transform", function (d) {
+                  var centroid = arc.centroid(d);
+                  if (pieData.length === 1) {
+                    // Zbog solo chartova
+                    return (
+                      "translate(" +
+                      centroid[0] +
+                      "," +
+                      (centroid[1] - 100) +
+                      ")"
+                    );
+                  } else {
+                    return "translate(" + centroid[0] + "," + centroid[1] + ")";
+                  }
+                })
+                .attr("text-anchor", "middle")
+                .html(function (d) {
+                  return `<tspan>${d.data.rating}</tspan>
+                  <tspan x="0" dy="1em">[${d.data.count}]</tspan>`;
+                });
+            });
+
+          //here
+          //kraj
+        });
+      });
+
+      function getCocoaRating(countryName, cocoa_ratings) {
+        var ratings = [];
+        for (var i = 0; i < cocoa_ratings.length; i++) {
+          if (cocoa_ratings[i]["Broad Bean Origin"] === countryName) {
+            ratings.push(cocoa_ratings[i]["Rating"]);
+          }
+        }
+        return ratings;
+      }
+
+      function calculateAverageRating(ratings) {
+        if (ratings.length === 0) {
+          return "Ova zemlja nije proizvođač kakaa!";
+        }
+        var sum = ratings.reduce(function (a, b) {
+          return a + b;
+        }, 0);
+        var average = sum / ratings.length;
+        return average.toFixed(2);
+      }
+
+      function mapRatingToRange(rating) {
+        if (rating >= 1.0 && rating < 2.0) {
+          return 1.5;
+        } else if (rating >= 2.0 && rating < 3.0) {
+          return 2.5;
+        } else if (rating >= 3 && rating < 3.5) {
+          return 3.25;
+        } else if (rating >= 3.5 && rating < 4.0) {
+          return 3.75;
+        } else {
+          return 4.5;
+        }
+      }
+    </script>
+  </body>
+</html>
