@@ -14,6 +14,12 @@
       <h1>Vizualizacija kvalitete čokolada na temelju podrijetla kakaa</h1>
     </div>
     <script>
+      //flex container
+      var container = d3.select("body").append("div").style("display", "flex");
+
+      var leftColumn = container.append("div");
+      var rightColumn = container.append("div");
+
       var width = 960;
       var height = 650;
 
@@ -25,32 +31,12 @@
       var pie = d3.layout.pie().value(function (d) {
         return d.count;
       });
-      //
-
-      var container = d3.select("body").append("div").style("display", "flex");
-
-      var leftColumn = container.append("div");
-      var rightColumn = container.append("div");
-
-      var projection = d3.geo
-        .mercator()
-        .scale(140)
-        .translate([width / 2, height / 1.4]);
-
-      var path = d3.geo.path().projection(projection);
-
-      var svg = leftColumn
-        .append("svg")
-        .attr("width", width)
-        .attr("height", height)
-        .append("g");
 
       var text = rightColumn
         .append("h2")
         .text("Hover over any country!")
         .attr("class", "name");
 
-      //nasteluj kontejner
       var pieColor = d3.scale
         .ordinal()
         .domain([1.5, 2.5, 3.25, 3.75, 4.5])
@@ -63,17 +49,30 @@
         .attr("width", circleWidth)
         .attr("height", circleHeight);
 
-      //detlete this to fix -MARKO DUBRAVAC
+      //path
+      var projection = d3.geo
+        .mercator()
+        .scale(140)
+        .translate([width / 2, height / 1.4]);
+
+      var path = d3.geo.path().projection(projection);
+
+      //map params
+      var svg = leftColumn
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g");
 
       var countryColors = d3.scale
         .linear()
         .domain([2.5, 3.0, 3.2, 3.5, 4.5])
         .range(["#dc9456", "#ab7343", "#49311d", "#18100a"]);
 
+      //legend
       var legendWidth = 200;
       var legendHeight = 20;
 
-      // Create the legend SVG element
       var legend = d3
         .select("svg")
         .append("svg")
@@ -83,22 +82,8 @@
         .attr("x", 50)
         .attr("y", 600);
 
-      var legendContainer = legend
-        .append("g")
-        .attr("transform", "translate(10, 0)"); // Adjust the x coordinate to create some padding
-
-      // Add the legend title
-      legendContainer
-        .append("text")
-        .attr("class", "legend-title")
-        .attr("x", legendWidth / 2)
-        .attr("y", 15) // Adjust the y coordinate to position the title within the legend container
-        .style("text-anchor", "middle")
-        .text("Legend:");
-
       var swatchWidth = legendWidth / countryColors.range().length;
 
-      // Add color swatches to the legend
       var countryColorsSwatches = legend
         .selectAll(".color-swatch")
         .data(countryColors.domain())
@@ -117,7 +102,6 @@
           return countryColors(d);
         });
 
-      // Add text labels for the legend domain values
       var legendLabels = svg
         .selectAll(".legend-label")
         .data(countryColors.domain())
@@ -141,7 +125,7 @@
         .text("Chocolate Rating")
         .attr("text-anchor", "middle");
 
-      // BAR PARAMS
+      //bar params
       var margin = { top: 80, right: 20, bottom: 380, left: 340 };
       var barWidth = 1000 - margin.left - margin.right;
       var barHeight = 1000 - margin.top - margin.bottom;
@@ -156,8 +140,11 @@
         .orient("left")
         .tickFormat(formatPercent);
 
+      //main code
       d3.json("worldTopo.json", function (error, world) {
         d3.json("cocoa_ratings.json", function (error, cocoa_ratings) {
+          //world map
+
           var data = topojson.feature(world, world.objects.countries1);
 
           var states = svg
@@ -181,13 +168,14 @@
             .style("stroke-width", 1)
             .style("stroke-opacity", 1)
             .on("click", function (d) {
+              //bar chart
               d3.selectAll(".barSvg").remove();
               var countryName = d.properties.name;
               var filteredData = cocoa_ratings.filter(function (rating) {
                 return rating["Broad Bean Origin"] === countryName;
               });
               if (filteredData.length === 0) {
-                console.log("Hello!");
+                alert("Try Clicking On A Country That Produces Cocoa!");
               } else {
                 var barSvg = d3
                   .select("body")
@@ -201,8 +189,13 @@
                     "translate(" + margin.left + "," + margin.top + ")"
                   );
 
-                barSvg.selectAll(".chart-title").remove();
                 window.scrollTo(0, document.body.scrollHeight); // scroll
+
+                barSvg.selectAll(".chart-title").remove();
+                barSvg.selectAll(".bar").remove();
+                barSvg.selectAll(".x.axis").remove();
+                barSvg.selectAll(".y.axis").remove();
+
                 barSvg
                   .append("text")
                   .attr("class", "chart-title")
@@ -232,10 +225,6 @@
                   })
                 );
                 y.domain([0, 5]);
-
-                barSvg.selectAll(".bar").remove();
-                barSvg.selectAll(".x.axis").remove();
-                barSvg.selectAll(".y.axis").remove();
 
                 barSvg
                   .append("g")
@@ -276,14 +265,13 @@
                   .attr("y", function (d) {
                     return y(0);
                   })
-                  .attr("height", 0) // Set initial height to 0
+                  .attr("height", 0)
                   .transition()
                   .duration(1000)
                   .delay(function (d, i) {
                     return i * 100;
                   })
                   .attr("y", function (d) {
-                    // Set the final y-coordinate to make it rise
                     return y(d.values);
                   })
                   .attr("height", function (d) {
@@ -291,8 +279,8 @@
                   });
               }
             })
-
             .on("mouseover", function (d) {
+              //pie chart
               var countryName = d.properties.name;
               var cocoaRatings = getCocoaRating(countryName, cocoa_ratings);
               var averageRating = calculateAverageRating(cocoaRatings);
@@ -366,8 +354,6 @@
                   <tspan x="0" dy="1em">[${d.data.count}]</tspan>`;
                 });
             });
-
-          //here
           //kraj
         });
       });
