@@ -15,7 +15,10 @@
     </div>
     <script>
       //flex container
-      var container = d3.select("body").append("div").style("display", "flex");
+      var container = d3
+        .select("body")
+        .append("div")
+        .attr("class", "container");
 
       var leftColumn = container.append("div");
       var rightColumn = container.append("div");
